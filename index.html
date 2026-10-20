@@ -120,7 +120,7 @@ footer a { color: var(--accent); }
 <body>
 <div class="wrap">
   <header>
-    <div class="eyebrow">RERGON · IHP SG13G2 130 nm · 64×64 1T1R RRAM PiM macro · pre-silicon</div>
+    <div class="eyebrow">RERGON · IHP SG13G2 130 nm · 64×64 1T1R RRAM PiM macro · pre-silicon, tape-out ready</div>
     <h1>One 8×8 slice, read in the time domain</h1>
     <p class="lede">Each column precharges its bit line, opens the selected word lines and discharges through the cells. An 8-tap delay line samples the buffered bit line (BLD), and the count of taps that still saw BL high is the column's thermometer code. Opening 8 rows at once turns that read into NOR, majority or popcount.</p>
   </header>
@@ -136,7 +136,7 @@ footer a { color: var(--accent); }
     <div class="row">
       <div class="field" id="f-data"><span>Data word, columns 0–7</span><div class="bits" id="bits"></div></div>
       <div class="field" id="f-hrs"><span>HRS</span><div class="seg" role="group" aria-label="HRS resistance">
-        <button id="hrs-1m" data-hrs="1M">1 MΩ (ideal)</button><button id="hrs-200k" data-hrs="200k">200 kΩ (IHP top)</button></div></div>
+        <button id="hrs-200k" data-hrs="200k">200 kΩ (IHP top)</button><button id="hrs-1m" data-hrs="1M">1 MΩ (ideal)</button></div></div>
       <div class="field" id="f-off"><span>Read offset</span><div class="seg" role="group" aria-label="Read offset" id="offs"></div></div>
       <button class="btn run" id="run">Run</button>
       <button class="btn" id="fill">Load example data</button>
@@ -175,36 +175,53 @@ footer a { color: var(--accent); }
   <details>
     <summary>Where the numbers come from</summary>
     <ul>
-      <li>Crossing times of the buffer threshold (≈0.6 V) and the resulting codes follow the paper's transistor-level results with extracted line capacitance and C<sub>MIM</sub> = 10 fF (Fig. 4, Table I). LRS is 9 kΩ.</li>
-      <li>8-row, HRS 1 MΩ (ideal case), V<sub>drain</sub>/V<sub>gate</sub>/V<sub>DEL</sub> = 1.0/0.8/0.8 V: BL crosses at 39.7 ns for k = 0 and 29.6 ns for k = 1, compressing to 22.1 ns at k = 8. At +10 ns the codes are 8 8 8 7 4 2 0 0 0; at +20 ns NOR is full scale.</li>
-      <li>8-row, HRS 200 kΩ, 0.8/1.0/0.8 V: the whole band is 13.3–14.1 ns, so NOR and majority are not resolved and only 3 popcount codes appear.</li>
-      <li>Single-row read, 0.8/0.8/0.8 V: LRS crosses at 28 ns, a 200 kΩ HRS at about 51 ns; a window at +20 or +30 ns separates them by all 8 taps. The paper does not report a single-row 1 MΩ crossing; the demo only shows it as later than the plot.</li>
-      <li>Tap positions (≈0.31 ns pitch at V<sub>DEL</sub> = 0.8 V) are fitted so the model reproduces those codes. The waveform shape between precharge and threshold is drawn as a simple exponential for illustration; only the crossing times are from simulation.</li>
-      <li>Writes: TS_LS with DIN = 1 drives SL to V<sub>drain</sub> and BL to ground (SET → LRS); DIN = 0 drives BL to V<sub>drain</sub> and SL to ground (RESET → HRS). Reads use the RESET polarity at ≤0.18 V and ≤2.6 µA per cell.</li>
+      <li>Each operation runs at its best operating point from the paper's finished V<sub>drain</sub> × V<sub>gate</sub> × V<sub>DEL</sub> grid (0.8–1.0 V), confirmed by direct transients (Table I). C<sub>MIM</sub> = 10 fF, extracted line capacitance, LRS 9 kΩ, 40-cycle precharge, settle-drain.</li>
+      <li>HRS 200 kΩ (top of IHP's range), V<sub>gate</sub> = 0.8 V: single-row read by 8 taps (0.8/0.8/0.8 V, +20 ns); 8-row NOR codes 7 1 0 0 0 0 0 0 0, 6 taps (0.9/0.8/1.0 V, +10 ns); 8-row majority codes 8 8 8 6 3 1 0 0 0, 2 taps, and 5 popcount codes (1.0/0.8/1.0 V, +10 ns). 0.06 V and 0.8 µA on a cell for the 8-row operations.</li>
+      <li>HRS 1 MΩ (ideal case): NOR codes 8 0 0 0 0 0 0 0 0, full scale (0.8/0.8/0.9 V); majority codes 8 8 8 8 7 3 0 0 0, 4 taps (1.0/0.8/1.0 V). 0.12 V and 1.0 µA on a cell. Popcount at the majority point follows from those codes (4 levels); the paper does not list it.</li>
+      <li>Crossing times are read from Fig. 4(a): at 200 kΩ the 8-row band is 20–27 ns, with the NOR all-HRS crossing at 23.9 ns and k = 1 at 22.9 ns. Single-row: LRS 28.2 ns, 200 kΩ HRS 50.7 ns.</li>
+      <li>Two curves are not plotted in the paper and are drawn only to reproduce the Table I codes: 1 MΩ NOR at 0.8/0.8/0.9 V, and the single-row 1 MΩ HRS crossing (shown as later than the plot). The page flags them when they are in use.</li>
+      <li>Tap positions are fitted per operating point so the model gives exactly the Table I codes, matching the paper's comparison offset fitted on direct transients. Pitch is about 0.17 ns at V<sub>DEL</sub> = 1.0 V (window 23.5–24.7 ns) and 0.31 ns at 0.8 V; 0.24 ns at 0.9 V is interpolated. Codes at other read offsets shift the same window by 10 ns steps. The waveform between precharge and threshold is a simple exponential for illustration; only the crossing times come from simulation.</li>
+      <li>Writes: TS_LS with DIN = 1 drives SL to V<sub>drain</sub> and BL to ground (SET → LRS); DIN = 0 drives BL to V<sub>drain</sub> and SL to ground (RESET → HRS). Reads use the RESET polarity.</li>
       <li>The full macro has 64 columns, so one access returns 64 × 8 = 512 bits. This page shows one 8×8 block, the same block the paper simulates.</li>
     </ul>
   </details>
-  <footer>Pre-silicon demonstration of E. Yemini, “A 64×64 1T1R RRAM Processing-in-Memory Macro with Time-Domain Multi-Row Readout in 130 nm SG13G2” (draft). Not measured silicon data.</footer>
+  <footer>Pre-silicon demonstration of E. Yemini, A. Teman and L. Yavits, “A 64×64 1T1R RRAM Processing-in-Memory Macro with Time-Domain Multi-Row Readout in 130 nm SG13G2” (draft). Not measured silicon data.</footer>
 </div>
 
 <script>
 (() => {
-  const N = 8, VTH = 0.6, PITCH = 0.31, TMAX = 60;
-  // Crossing times (ns) of the BL buffer threshold vs k = LRS cells of 8 open rows (Fig. 4a, C_MIM = 10 fF).
-  const MULTI = {
-    "1M":   { vd: 1.0, vg: 0.8, vdel: 0.8, base: 12.85, t: [39.7, 29.6, 26.6, 25.0, 24.0, 23.3, 22.8, 22.4, 22.1] },
-    "200k": { vd: 0.8, vg: 1.0, vdel: 0.8, base: 11.69, t: [14.1, 14.0, 13.85, 13.75, 13.7, 13.65, 13.45, 13.4, 13.3] }
+  const N = 8, VTH = 0.6, TMAX = 60;
+  // Best operating point per operation (Table I, C_MIM = 10 fF, extracted line C, LRS 9 kΩ).
+  // t: BL threshold crossing (ns) vs k = LRS cells of 8 open rows (Fig. 4a). tap0: first tap at the default
+  // offset, fitted so the codes match Table I; pitch from the V_DEL window (23.5–24.7 ns for 8 taps at 1.0 V).
+  const MAJ200 = { vd: 1.0, vg: 0.8, vdel: 1.0, tap0: 22.985, pitch: 0.171, v: 0.06, i: 0.8,
+    t: [26.8, 25.4, 24.5, 23.9, 23.4, 23.1, 22.8, 22.5, 22.2] };
+  const MAJ1M = { vd: 1.0, vg: 0.8, vdel: 1.0, tap0: 22.88, pitch: 0.171, v: 0.12, i: 1.0,
+    t: [39.7, 29.6, 26.6, 25.0, 24.0, 23.3, 22.8, 22.4, 22.1] };
+  const PRESET = {
+    "200k": {
+      read: { vd: 0.8, vg: 0.8, vdel: 0.8, tap0: 32.85, pitch: 0.31, v: 0.09, i: 1.3, tL: 28.2, tH: 50.7 },
+      nor: { vd: 0.9, vg: 0.8, vdel: 1.0, tap0: 22.8, pitch: 0.171, v: 0.06, i: 0.8,
+        t: [23.9, 22.9, 22.2, 21.8, 21.4, 21.1, 20.9, 20.7, 20.5] },
+      maj: MAJ200, pop: MAJ200
+    },
+    "1M": {
+      // 1 MΩ single-row crossing is not reported: drawn beyond the plot.
+      read: { vd: 0.8, vg: 0.8, vdel: 0.8, tap0: 32.85, pitch: 0.31, v: null, i: null, tL: 28.2, tH: 95, synth: true },
+      // NOR point 0.8/0.8/0.9 V: Table I gives the codes but Fig. 4a has no curve; drawn to match the codes.
+      nor: { vd: 0.8, vg: 0.8, vdel: 0.9, tap0: 22.85, pitch: 0.24, v: 0.12, i: 1.0, synth: true,
+        t: [27.5, 21.0, 20.0, 19.4, 19.0, 18.7, 18.5, 18.3, 18.1] },
+      maj: MAJ1M, pop: MAJ1M
+    }
   };
-  // Single-row read at 0.8/0.8/0.8 V (Fig. 4d). 1 MΩ single-row crossing is not reported: drawn beyond the plot.
-  const SINGLE = { vd: 0.8, vg: 0.8, vdel: 0.8, base: 12.85, tL: 28.0, tH: { "200k": 50.7, "1M": 95 } };
-  const DEF_OFF = { read: 20, nor: 20, maj: 10, pop: 10 };
+  const DEF_OFF = { read: 20, nor: 10, maj: 10, pop: 10 };
   const OFFS = [0, 10, 20, 30];
   const FN = { nor: k => k === 0 ? 1 : 0, maj: k => k > N / 2 ? 1 : 0, pop: k => k };
   const HINT = {
     write: "Tick the target rows, set the data word and run. Columns with a 1 get SET (SL at V₀, BL grounded) and become LRS; columns with a 0 get RESET (BL at V₀, SL grounded) and become HRS.",
     read: "Tick one row. Each column's code is 0 for LRS (BL falls before the taps) and 8 for HRS. The controller's single-bit read takes tap 3.",
-    nor: "All 8 word lines open together. Only a column with every cell in HRS (k = 0) discharges slowly enough to hold BL high across the window.",
-    maj: "All 8 word lines open. The decision is between k = 4 and k = 5 LRS cells, where the crossing times are less than a nanosecond apart.",
+    nor: "All 8 word lines open together. Only a column with every cell in HRS (k = 0) discharges slowly enough to hold BL high across the window. At 200 kΩ the best point uses V_drain = 0.9 V.",
+    maj: "All 8 word lines open. The decision is between k = 4 and k = 5 LRS cells, where the crossing times are only a few hundred picoseconds apart. V_drain = 1.0 V moves the band so k = 3…5 straddle the window.",
     pop: "All 8 word lines open. Each distinct code is one popcount level; codes shared by several k only bound the count."
   };
   const $ = id => document.getElementById(id);
@@ -212,7 +229,7 @@ footer a { color: var(--accent); }
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const EXAMPLE_K = [0, 1, 2, 3, 4, 5, 6, 8];
-  let mem = [], op = "nor", hrs = "1M", off = 20, word = [1, 0, 1, 1, 0, 0, 1, 0];
+  let mem = [], op = "nor", hrs = "200k", off = 10, word = [1, 0, 1, 1, 0, 0, 1, 0];
   let mask = [true, false, false, false, false, false, false, false];
   let selCol = 0, result = null, cursor = null, phase = null, anim = 0, busy = false, writing = null;
 
@@ -224,16 +241,15 @@ footer a { color: var(--accent); }
 
   // ---------- model ----------
   function config() {
-    if (op === "read") {
+    const p = PRESET[hrs][op === "write" ? "read" : op];
+    if (op === "read" || op === "write") {
       const r = mask.indexOf(true);
-      return { vd: SINGLE.vd, vg: SINGLE.vg, vdel: SINGLE.vdel, base: SINGLE.base,
-        cols: Array.from({ length: N }, (_, c) => { const b = r < 0 ? 0 : mem[r][c]; return { k: b, tc: b ? SINGLE.tL : SINGLE.tH[hrs] }; }) };
+      return { ...p, cols: Array.from({ length: N }, (_, c) => { const b = r < 0 ? 0 : mem[r][c]; return { k: b, tc: b ? p.tL : p.tH }; }) };
     }
-    const m = MULTI[hrs];
-    return { vd: m.vd, vg: m.vg, vdel: m.vdel, base: m.base, tbl: m.t,
-      cols: Array.from({ length: N }, (_, c) => { let k = 0; for (let r = 0; r < N; r++) k += mem[r][c]; return { k, tc: m.t[k] }; }) };
+    return { ...p, tbl: p.t,
+      cols: Array.from({ length: N }, (_, c) => { let k = 0; for (let r = 0; r < N; r++) k += mem[r][c]; return { k, tc: p.t[k] }; }) };
   }
-  const taps = cfg => Array.from({ length: N }, (_, j) => cfg.base + off + PITCH * j);
+  const taps = cfg => Array.from({ length: N }, (_, j) => cfg.tap0 + (off - DEF_OFF[op]) + cfg.pitch * j);
   const vbl = (vd, tc, t) => t <= 0 ? vd : vd * Math.exp(-t * Math.log(vd / VTH) / tc);
   const codeOf = (tc, tp) => tp.filter(x => x < tc).length;
 
@@ -275,10 +291,10 @@ footer a { color: var(--accent); }
     $("f-off").hidden = op === "write";
     $("hint").textContent = HINT[op].replace(/V₀/g, "V_drain");
     $("run").textContent = op === "write" ? "Write" : "Run read";
-    const cfg = config();
+    const cfg = config(), tp = taps(cfg);
     $("oppoint").innerHTML = op === "write"
       ? `TS_LS drivers from <b>V<sub>drain</sub></b> (write level) · word lines from <b>V<sub>gate</sub></b> · ${mask.filter(Boolean).length} row(s) selected`
-      : `Operating point <b>V<sub>drain</sub>/V<sub>gate</sub>/V<sub>DEL</sub> = ${cfg.vd.toFixed(1)}/${cfg.vg.toFixed(1)}/${cfg.vdel.toFixed(1)} V</b> · HRS <b>${hrs === "1M" ? "1 MΩ" : "200 kΩ"}</b> · LRS <b>9 kΩ</b> · C<sub>MIM</sub> <b>10 fF</b> · ${op === "read" ? "1 row" : "8 rows"} open · taps at <b>+${(cfg.base + off).toFixed(1)}…+${(cfg.base + off + 7 * PITCH).toFixed(1)} ns</b>`;
+      : `Operating point <b>V<sub>drain</sub>/V<sub>gate</sub>/V<sub>DEL</sub> = ${cfg.vd.toFixed(1)}/${cfg.vg.toFixed(1)}/${cfg.vdel.toFixed(1)} V</b> · HRS <b>${hrs === "1M" ? "1 MΩ" : "200 kΩ"}</b> · LRS <b>9 kΩ</b> · C<sub>MIM</sub> <b>10 fF</b> · ${op === "read" ? "1 row" : "8 rows"} open · taps at <b>${tp[0].toFixed(1)}…${tp[7].toFixed(1)} ns</b> · read stress <b>${cfg.v === null ? "not reported" : cfg.v.toFixed(2) + " V / " + cfg.i.toFixed(1) + " µA"}</b> per cell${cfg.synth ? " · <b>curve drawn to match Table I codes (not plotted in the paper)</b>" : ""}`;
   }
   function renderArray() {
     const cfg = op === "write" ? null : config();
@@ -363,7 +379,7 @@ footer a { color: var(--accent); }
       s += `<line x1="${x(tt)}" x2="${x(tt)}" y1="${T}" y2="${H - B}" stroke="${bld}" stroke-width="${fired ? 1.6 : 1}" opacity="${fired ? 1 : .4}"/>`;
       s += `<text x="${x(tt)}" y="${H - B + 14}" text-anchor="middle" style="fill:${fired ? bld : css("--ink-2")}">k${j}</text>`;
     });
-    s += `<text x="${W - R}" y="${H - 2}" text-anchor="end">${a.toFixed(1)}–${b.toFixed(1)} ns · tap pitch ${PITCH} ns (V_DEL)</text>`;
+    s += `<text x="${W - R}" y="${H - 2}" text-anchor="end">${a.toFixed(1)}–${b.toFixed(1)} ns · tap pitch ${ev.cfg.pitch} ns (V_DEL = ${ev.cfg.vdel.toFixed(1)} V)</text>`;
     if (t !== null) {
       const tEnd = Math.min(t, b), order = ev.cols.map((c, i) => i).sort((p, q) => (p === selCol) - (q === selCol));
       if (tEnd > a) for (const i of order) {
@@ -445,7 +461,7 @@ footer a { color: var(--accent); }
     if (op === "nor") msg += result.margin > 0 ? ` NOR resolved by ${result.margin} taps.` : " k = 0 and k = 1 give the same code here, so NOR is not resolved.";
     if (op === "maj") msg += result.margin > 0 ? ` Majority resolved by ${result.margin} tap${result.margin > 1 ? "s" : ""}.` : " k = 4 and k = 5 give the same code, so majority is not resolved.";
     if (op === "pop") msg += ` ${result.margin} popcount levels are distinguishable at this window.`;
-    if (amb || bad) msg += " Try another read offset" + (hrs === "200k" ? " or the 1 MΩ HRS." : ".");
+    if (amb || bad) msg += " Try another read offset" + ", or go back to the best point (+" + DEF_OFF[op] + " ns).";
     $("status").textContent = msg;
   }
   function runWrite() {
@@ -465,11 +481,11 @@ footer a { color: var(--accent); }
     if (b.dataset.op) {
       op = b.dataset.op;
       if (op === "read" && mask.filter(Boolean).length !== 1) mask = mask.map((_, r) => r === Math.max(0, mask.indexOf(true)));
-      if (DEF_OFF[op] !== undefined) off = hrs === "200k" && op !== "read" ? 0 : DEF_OFF[op];
+      if (DEF_OFF[op] !== undefined) off = DEF_OFF[op];
       result = null; cursor = null; setPhase(null); syncControls(); renderArray(); drawScope(null, null); renderReg(null, null); $("status").textContent = "";
       if (op !== "write") runRead();
     } else if (b.dataset.hrs) {
-      hrs = b.dataset.hrs; if (op !== "read" && op !== "write") off = hrs === "200k" ? 0 : DEF_OFF[op];
+      hrs = b.dataset.hrs; if (op !== "write") off = DEF_OFF[op];
       syncControls(); if (op !== "write") runRead();
     } else if (b.dataset.o !== undefined) { off = +b.dataset.o; syncControls(); runRead(); }
     else if (b.dataset.c !== undefined && b.closest("#bits")) { word[b.dataset.c] ^= 1; syncControls(); }
