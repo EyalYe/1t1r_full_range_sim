@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>RERGON 1T1R Slice</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Interactive view of one 8×8 slice of the 64×64 1T1R RRAM PiM macro: write, read, NOR, majority and popcount with a live bit-line and TDC tap view.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: an instrument bench. Controls strip on top, the cell array beside the bit-line scope, the TDC register file below. */
+:root {
+  --bg: #eef1f4; --surface: #ffffff; --sunk: #f5f7f9; --ink: #14202b; --ink-2: #4f5d6b; --rule: #cfd6dd;
+  --accent: #1f5f8b; --lrs: #2a6fdb; --hrs: #e0612f; --bld: #1a9a6c; --warn: #9a5b00; --bad: #b3261e; --ok: #1d6b45;
+  --grid: #e3e8ed; --band: rgba(26,154,108,.16);
+  --display: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #10161c; --surface: #172029; --sunk: #121a22; --ink: #e6edf3; --ink-2: #9fb0c0; --rule: #2c3845;
+  --accent: #7cb8e4; --lrs: #5d9cf5; --hrs: #f28a5c; --bld: #4fd1a0; --warn: #f0c060; --bad: #ff8a80; --ok: #74d3a1;
+  --grid: #222d38; --band: rgba(79,209,160,.16); color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #10161c; --surface: #172029; --sunk: #121a22; --ink: #e6edf3; --ink-2: #9fb0c0; --rule: #2c3845;
+  --accent: #7cb8e4; --lrs: #5d9cf5; --hrs: #f28a5c; --bld: #4fd1a0; --warn: #f0c060; --bad: #ff8a80; --ok: #74d3a1;
+  --grid: #222d38; --band: rgba(79,209,160,.16); color-scheme: dark }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-block: 28px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 20px; }
+header { display: grid; gap: 6px; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+h1 { font-family: var(--display); font-weight: 600; font-size: clamp(26px, 4vw, 36px); line-height: 1.15; margin: 0; text-wrap: balance; }
+.lede { margin: 0; color: var(--ink-2); max-width: 75ch; }
+h2 { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); margin: 0; }
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 16px; display: grid; gap: 12px; min-width: 0; align-content: start; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* controls */
+.controls { display: grid; gap: 14px; }
+.ops { display: flex; flex-wrap: wrap; gap: 6px; }
+.ops button, .seg button, .btn { font: 500 14px var(--body); border: 1px solid var(--rule); background: var(--sunk); color: var(--ink);
+  border-radius: 6px; padding: 7px 14px; cursor: pointer; }
+.ops button[aria-pressed="true"], .seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.btn.run { background: var(--accent); border-color: var(--accent); color: var(--surface); font-weight: 600; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:disabled { opacity: .5; cursor: default; }
+.row { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; }
+.field { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.field > span { font-size: 13px; color: var(--ink-2); }
+.seg { display: inline-flex; gap: 0; }
+.seg button { border-radius: 0; padding: 5px 10px; font-size: 13px; }
+.seg button:first-child { border-radius: 6px 0 0 6px; } .seg button:last-child { border-radius: 0 6px 6px 0; }
+.seg button + button { border-left: 0; }
+.bits { display: inline-flex; gap: 4px; }
+.bits button { width: 30px; height: 30px; padding: 0; font-family: var(--mono); font-size: 14px; border-radius: 4px; border: 1px solid var(--rule); cursor: pointer;
+  background: var(--sunk); color: var(--hrs); }
+.bits button[data-v="1"] { color: var(--lrs); font-weight: 600; }
+.oppoint { font-size: 13px; color: var(--ink-2); }
+.oppoint b { color: var(--ink); font-weight: 500; }
+.hint { font-size: 13px; color: var(--ink-2); margin: 0; max-width: 80ch; }
+
+/* bench */
+.bench { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 20px; }
+@media (max-width: 900px) { .bench { grid-template-columns: minmax(0,1fr); } }
+
+/* array */
+.array { display: grid; grid-template-columns: 54px repeat(8, minmax(0, 1fr)); gap: 4px; align-items: center; }
+.array .hd { font-family: var(--mono); font-size: 11px; color: var(--ink-2); text-align: center; line-height: 1.25; }
+.drv { font-family: var(--mono); font-size: 10px; text-align: center; border-radius: 3px; padding: 2px 0; color: var(--ink-2); background: var(--sunk); min-height: 30px; display: grid; align-content: center; }
+.drv.set { color: var(--lrs); } .drv.reset { color: var(--hrs); } .drv.pre { color: var(--bld); }
+.wl { display: flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 11px; color: var(--ink-2); }
+.wl input { margin: 0; accent-color: var(--accent); }
+.wl.on { color: var(--accent); font-weight: 600; }
+.cell { aspect-ratio: 1; max-width: 100%; border-radius: 4px; border: 1px solid var(--rule); display: grid; place-items: center; background: var(--sunk);
+  font-family: var(--mono); font-size: 13px; position: relative; transition: background .25s, border-color .25s; }
+.cell::after { content: ""; position: absolute; left: 22%; right: 22%; bottom: 18%; height: 3px; border-radius: 2px; background: currentColor; opacity: .55; }
+.cell.l { color: var(--lrs); } .cell.h { color: var(--hrs); }
+.cell.sel { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.cell.flash { background: var(--band); }
+.foot { font-family: var(--mono); font-size: 11px; text-align: center; color: var(--ink-2); }
+.foot.k { color: var(--ink); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--ink-2); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+
+/* scope */
+.scope svg { width: 100%; height: auto; display: block; }
+.scope text { font-family: var(--mono); font-size: 11px; fill: var(--ink-2); }
+.phase { display: flex; gap: 6px; flex-wrap: wrap; }
+.phase span { font-family: var(--mono); font-size: 12px; padding: 3px 9px; border-radius: 999px; background: var(--sunk); color: var(--ink-2); border: 1px solid var(--rule); }
+.phase span.on { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.status { font-size: 13px; color: var(--ink-2); min-height: 1.5em; margin: 0; }
+
+/* register file */
+.regwrap { overflow-x: auto; }
+table.reg { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 13px; }
+.reg th { font: 500 11px var(--mono); color: var(--ink-2); text-align: center; padding: 4px; border-bottom: 1px solid var(--rule); }
+.reg th.l, .reg td.l { text-align: left; }
+.reg td { padding: 5px 4px; border-bottom: 1px solid var(--grid); text-align: center; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.reg tr { cursor: pointer; }
+.reg tr.hl td { background: var(--sunk); }
+.ff { display: inline-block; width: 20px; height: 20px; border-radius: 3px; border: 1px solid var(--rule); line-height: 18px; font-size: 11px; color: var(--ink-2); }
+.ff.v1 { background: var(--bld); border-color: var(--bld); color: var(--surface); }
+.ff.v0 { background: var(--surface); color: var(--ink-2); }
+.ok { color: var(--ok); } .bad { color: var(--bad); } .amb { color: var(--warn); }
+.summary { display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 13px; }
+.summary b { font-family: var(--mono); font-weight: 500; }
+details { font-size: 14px; color: var(--ink-2); }
+details summary { cursor: pointer; color: var(--ink); font-weight: 500; }
+details ul { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 4px; max-width: 85ch; }
+footer { font-size: 12px; color: var(--ink-2); }
+footer a { color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .cell { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">RERGON · IHP SG13G2 130 nm · 64×64 1T1R RRAM PiM macro · pre-silicon</div>
+    <h1>One 8×8 slice, read in the time domain</h1>
+    <p class="lede">Each column precharges its bit line, opens the selected word lines and discharges through the cells. An 8-tap delay line samples the buffered bit line (BLD), and the count of taps that still saw BL high is the column's thermometer code. Opening 8 rows at once turns that read into NOR, majority or popcount.</p>
+  </header>
+
+  <section class="panel controls" aria-label="Operation">
+    <div class="ops" role="group" aria-label="Operation">
+      <button id="op-write" data-op="write">Write</button>
+      <button id="op-read" data-op="read">Read</button>
+      <button id="op-nor" data-op="nor">NOR (8 rows)</button>
+      <button id="op-maj" data-op="maj">Majority (8 rows)</button>
+      <button id="op-pop" data-op="pop">Popcount (8 rows)</button>
+    </div>
+    <div class="row">
+      <div class="field" id="f-data"><span>Data word, columns 0–7</span><div class="bits" id="bits"></div></div>
+      <div class="field" id="f-hrs"><span>HRS</span><div class="seg" role="group" aria-label="HRS resistance">
+        <button id="hrs-1m" data-hrs="1M">1 MΩ (ideal)</button><button id="hrs-200k" data-hrs="200k">200 kΩ (IHP top)</button></div></div>
+      <div class="field" id="f-off"><span>Read offset</span><div class="seg" role="group" aria-label="Read offset" id="offs"></div></div>
+      <button class="btn run" id="run">Run</button>
+      <button class="btn" id="fill">Load example data</button>
+    </div>
+    <div class="oppoint" id="oppoint"></div>
+    <p class="hint" id="hint"></p>
+  </section>
+
+  <div class="bench">
+    <section class="panel" aria-label="Cell array">
+      <h2>Array slice · rows 0–7 × columns 0–7</h2>
+      <div class="array" id="array"></div>
+      <div class="legend"><span><i style="background:var(--lrs)"></i>LRS 9 kΩ = 1</span><span><i style="background:var(--hrs)"></i>HRS = 0</span><span>Tick a row to select its word line</span></div>
+    </section>
+
+    <section class="panel scope" aria-label="Bit-line scope">
+      <div class="row" style="justify-content:space-between">
+        <h2>Bit lines BL[0–7] · live</h2>
+        <div class="phase" id="phase"><span data-p="pre">Precharge 40 cyc</span><span data-p="settle">WL open · settle</span><span data-p="dis">Discharge · sample</span><span data-p="done">Captured</span></div>
+      </div>
+      <svg id="plot" viewBox="0 0 640 270" role="img" aria-label="Bit-line voltage against time"></svg>
+      <h2>TDC window, zoomed · 8 taps</h2>
+      <svg id="zoom" viewBox="0 0 640 190" role="img" aria-label="Bit-line voltage around the TDC taps"></svg>
+      <p class="status" id="status"></p>
+    </section>
+  </div>
+
+  <section class="panel" aria-label="TDC register">
+    <div class="row" style="justify-content:space-between">
+      <h2>MEM_OUT[8c+k] · TDC flip-flops per column</h2>
+      <div class="summary" id="summary"></div>
+    </div>
+    <div class="regwrap"><table class="reg" id="reg"></table></div>
+  </section>
+
+  <details>
+    <summary>Where the numbers come from</summary>
+    <ul>
+      <li>Crossing times of the buffer threshold (≈0.6 V) and the resulting codes follow the paper's transistor-level results with extracted line capacitance and C<sub>MIM</sub> = 10 fF (Fig. 4, Table I). LRS is 9 kΩ.</li>
+      <li>8-row, HRS 1 MΩ (ideal case), V<sub>drain</sub>/V<sub>gate</sub>/V<sub>DEL</sub> = 1.0/0.8/0.8 V: BL crosses at 39.7 ns for k = 0 and 29.6 ns for k = 1, compressing to 22.1 ns at k = 8. At +10 ns the codes are 8 8 8 7 4 2 0 0 0; at +20 ns NOR is full scale.</li>
+      <li>8-row, HRS 200 kΩ, 0.8/1.0/0.8 V: the whole band is 13.3–14.1 ns, so NOR and majority are not resolved and only 3 popcount codes appear.</li>
+      <li>Single-row read, 0.8/0.8/0.8 V: LRS crosses at 28 ns, a 200 kΩ HRS at about 51 ns; a window at +20 or +30 ns separates them by all 8 taps. The paper does not report a single-row 1 MΩ crossing; the demo only shows it as later than the plot.</li>
+      <li>Tap positions (≈0.31 ns pitch at V<sub>DEL</sub> = 0.8 V) are fitted so the model reproduces those codes. The waveform shape between precharge and threshold is drawn as a simple exponential for illustration; only the crossing times are from simulation.</li>
+      <li>Writes: TS_LS with DIN = 1 drives SL to V<sub>drain</sub> and BL to ground (SET → LRS); DIN = 0 drives BL to V<sub>drain</sub> and SL to ground (RESET → HRS). Reads use the RESET polarity at ≤0.18 V and ≤2.6 µA per cell.</li>
+      <li>The full macro has 64 columns, so one access returns 64 × 8 = 512 bits. This page shows one 8×8 block, the same block the paper simulates.</li>
+    </ul>
+  </details>
+  <footer>Pre-silicon demonstration of E. Yemini, “A 64×64 1T1R RRAM Processing-in-Memory Macro with Time-Domain Multi-Row Readout in 130 nm SG13G2” (draft). Not measured silicon data.</footer>
+</div>
+
+<script>
+(() => {
+  const N = 8, VTH = 0.6, PITCH = 0.31, TMAX = 60;
+  // Crossing times (ns) of the BL buffer threshold vs k = LRS cells of 8 open rows (Fig. 4a, C_MIM = 10 fF).
+  const MULTI = {
+    "1M":   { vd: 1.0, vg: 0.8, vdel: 0.8, base: 12.85, t: [39.7, 29.6, 26.6, 25.0, 24.0, 23.3, 22.8, 22.4, 22.1] },
+    "200k": { vd: 0.8, vg: 1.0, vdel: 0.8, base: 11.69, t: [14.1, 14.0, 13.85, 13.75, 13.7, 13.65, 13.45, 13.4, 13.3] }
+  };
+  // Single-row read at 0.8/0.8/0.8 V (Fig. 4d). 1 MΩ single-row crossing is not reported: drawn beyond the plot.
+  const SINGLE = { vd: 0.8, vg: 0.8, vdel: 0.8, base: 12.85, tL: 28.0, tH: { "200k": 50.7, "1M": 95 } };
+  const DEF_OFF = { read: 20, nor: 20, maj: 10, pop: 10 };
+  const OFFS = [0, 10, 20, 30];
+  const FN = { nor: k => k === 0 ? 1 : 0, maj: k => k > N / 2 ? 1 : 0, pop: k => k };
+  const HINT = {
+    write: "Tick the target rows, set the data word and run. Columns with a 1 get SET (SL at V₀, BL grounded) and become LRS; columns with a 0 get RESET (BL at V₀, SL grounded) and become HRS.",
+    read: "Tick one row. Each column's code is 0 for LRS (BL falls before the taps) and 8 for HRS. The controller's single-bit read takes tap 3.",
+    nor: "All 8 word lines open together. Only a column with every cell in HRS (k = 0) discharges slowly enough to hold BL high across the window.",
+    maj: "All 8 word lines open. The decision is between k = 4 and k = 5 LRS cells, where the crossing times are less than a nanosecond apart.",
+    pop: "All 8 word lines open. Each distinct code is one popcount level; codes shared by several k only bound the count."
+  };
+  const $ = id => document.getElementById(id);
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const EXAMPLE_K = [0, 1, 2, 3, 4, 5, 6, 8];
+  let mem = [], op = "nor", hrs = "1M", off = 20, word = [1, 0, 1, 1, 0, 0, 1, 0];
+  let mask = [true, false, false, false, false, false, false, false];
+  let selCol = 0, result = null, cursor = null, phase = null, anim = 0, busy = false, writing = null;
+
+  function exampleData() {
+    // Column c holds EXAMPLE_K[c] LRS cells spread over the rows (example data).
+    mem = Array.from({ length: N }, () => Array(N).fill(0));
+    EXAMPLE_K.forEach((k, c) => { const rows = [3, 6, 0, 5, 1, 7, 2, 4].map(r => (r + c) % N); for (let i = 0; i < k; i++) mem[rows[i]][c] = 1; });
+  }
+
+  // ---------- model ----------
+  function config() {
+    if (op === "read") {
+      const r = mask.indexOf(true);
+      return { vd: SINGLE.vd, vg: SINGLE.vg, vdel: SINGLE.vdel, base: SINGLE.base,
+        cols: Array.from({ length: N }, (_, c) => { const b = r < 0 ? 0 : mem[r][c]; return { k: b, tc: b ? SINGLE.tL : SINGLE.tH[hrs] }; }) };
+    }
+    const m = MULTI[hrs];
+    return { vd: m.vd, vg: m.vg, vdel: m.vdel, base: m.base, tbl: m.t,
+      cols: Array.from({ length: N }, (_, c) => { let k = 0; for (let r = 0; r < N; r++) k += mem[r][c]; return { k, tc: m.t[k] }; }) };
+  }
+  const taps = cfg => Array.from({ length: N }, (_, j) => cfg.base + off + PITCH * j);
+  const vbl = (vd, tc, t) => t <= 0 ? vd : vd * Math.exp(-t * Math.log(vd / VTH) / tc);
+  const codeOf = (tc, tp) => tp.filter(x => x < tc).length;
+
+  function evaluate() {
+    const cfg = config(), tp = taps(cfg);
+    const cols = cfg.cols.map(col => ({ ...col, ff: tp.map(x => x < col.tc ? 1 : 0), code: codeOf(col.tc, tp) }));
+    let table = null, margin = null;
+    if (op !== "read") {
+      table = cfg.tbl.map(t => codeOf(t, tp));
+      if (op === "nor") margin = table[0] - table[1];
+      if (op === "maj") margin = table[4] - table[5];
+      if (op === "pop") margin = new Set(table).size;
+      cols.forEach(col => {
+        const ks = table.map((c, k) => c === col.code ? k : -1).filter(k => k >= 0);
+        const vals = [...new Set(ks.map(FN[op]))];
+        col.truth = FN[op](col.k);
+        col.ks = ks;
+        col.out = vals.length === 1 ? vals[0] : null;
+        col.verdict = col.out === null ? (op === "pop" ? "bound" : "amb") : (col.out === col.truth ? "ok" : "bad");
+      });
+    } else {
+      cols.forEach(col => { col.truth = col.k; col.out = col.ff[3] ? 0 : 1; col.verdict = col.out === col.truth ? "ok" : "bad"; });
+      margin = Math.min(...cols.map(c => c.k ? N - c.code : c.code)) ;
+    }
+    return { cfg, tp, cols, table, margin };
+  }
+
+  // ---------- UI build ----------
+  function buildControls() {
+    $("bits").innerHTML = word.map((v, c) => `<button id="bit-${c}" data-c="${c}" data-v="${v}" aria-label="Column ${c} bit">${v}</button>`).join("");
+    $("offs").innerHTML = OFFS.map(o => `<button id="off-${o}" data-o="${o}">+${o} ns</button>`).join("");
+  }
+  function syncControls() {
+    document.querySelectorAll(".ops button").forEach(b => b.setAttribute("aria-pressed", b.dataset.op === op));
+    document.querySelectorAll("[data-hrs]").forEach(b => b.setAttribute("aria-pressed", b.dataset.hrs === hrs));
+    document.querySelectorAll("[data-o]").forEach(b => b.setAttribute("aria-pressed", +b.dataset.o === off));
+    document.querySelectorAll("#bits button").forEach(b => { b.dataset.v = word[b.dataset.c]; b.textContent = word[b.dataset.c]; });
+    $("f-data").hidden = op !== "write";
+    $("f-off").hidden = op === "write";
+    $("hint").textContent = HINT[op].replace(/V₀/g, "V_drain");
+    $("run").textContent = op === "write" ? "Write" : "Run read";
+    const cfg = config();
+    $("oppoint").innerHTML = op === "write"
+      ? `TS_LS drivers from <b>V<sub>drain</sub></b> (write level) · word lines from <b>V<sub>gate</sub></b> · ${mask.filter(Boolean).length} row(s) selected`
+      : `Operating point <b>V<sub>drain</sub>/V<sub>gate</sub>/V<sub>DEL</sub> = ${cfg.vd.toFixed(1)}/${cfg.vg.toFixed(1)}/${cfg.vdel.toFixed(1)} V</b> · HRS <b>${hrs === "1M" ? "1 MΩ" : "200 kΩ"}</b> · LRS <b>9 kΩ</b> · C<sub>MIM</sub> <b>10 fF</b> · ${op === "read" ? "1 row" : "8 rows"} open · taps at <b>+${(cfg.base + off).toFixed(1)}…+${(cfg.base + off + 7 * PITCH).toFixed(1)} ns</b>`;
+  }
+  function renderArray() {
+    const cfg = op === "write" ? null : config();
+    let h = `<div class="hd">WL</div>` + Array.from({ length: N }, (_, c) => `<div class="hd">c${c}<br>SL·BL</div>`).join("");
+    h += `<div></div>` + Array.from({ length: N }, (_, c) => {
+      let cls = "", txt = "float";
+      if (writing) { const b = word[c]; cls = b ? "set" : "reset"; txt = b ? "SL↑ BL0" : "BL↑ SL0"; }
+      else if (phase === "pre") { cls = "pre"; txt = "BL↑ SL0"; }
+      else if (phase === "settle" || phase === "dis") { cls = "pre"; txt = "drain"; }
+      return `<div class="drv ${cls}">${txt}</div>`;
+    }).join("");
+    for (let r = 0; r < N; r++) {
+      const on = mask[r] || (op !== "write" && op !== "read");
+      const multi = op !== "write" && op !== "read";
+      h += `<label class="wl ${on ? "on" : ""}"><input type="checkbox" id="wl-${r}" data-r="${r}" ${on ? "checked" : ""} ${multi ? "disabled" : ""}>r${r}</label>`;
+      for (let c = 0; c < N; c++) {
+        const b = mem[r][c];
+        const fl = writing && mask[r] ? " flash" : "";
+        h += `<div class="cell ${b ? "l" : "h"}${on ? " sel" : ""}${fl}" title="row ${r}, col ${c}: ${b ? "LRS 9 kΩ (1)" : "HRS (0)"}">${b}</div>`;
+      }
+    }
+    h += `<div class="hd">${op === "read" ? "bit" : "k"}</div>` + Array.from({ length: N }, (_, c) => {
+      if (op === "write") return `<div class="foot"></div>`;
+      return `<div class="foot k">${cfg.cols[c].k}</div>`;
+    }).join("");
+    $("array").innerHTML = h;
+  }
+
+  // ---------- scope ----------
+  const kColor = k => {
+    // k = 0 (all HRS) orange → k = 8 (all LRS) blue, mixed in sRGB from the theme tokens
+    const a = hex(css("--hrs")), b = hex(css("--lrs")), f = k / N;
+    return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * f)).join(",")})`;
+  };
+  function hex(s) { s = s.replace("#", ""); return [0, 2, 4].map(i => parseInt(s.slice(i, i + 2), 16)); }
+  const traceColor = col => op === "read" ? (col.k ? css("--lrs") : css("--hrs")) : kColor(col.k);
+
+  function drawScope(ev, t) {
+    const svg = $("plot"), W = 640, H = 270, L = 44, R = 12, T = 12, B = 34;
+    const x = v => L + (v / TMAX) * (W - L - R), y = v => T + (1 - v / 1.1) * (H - T - B);
+    const g = css("--grid"), ink2 = css("--ink-2");
+    let s = "";
+    for (let v = 0; v <= 1.0001; v += 0.2) s += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="${g}"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v.toFixed(1)}</text>`;
+    for (let v = 0; v <= TMAX; v += 10) s += `<line y1="${T}" y2="${H - B}" x1="${x(v)}" x2="${x(v)}" stroke="${g}"/><text x="${x(v)}" y="${H - B + 16}" text-anchor="middle">${v}</text>`;
+    s += `<text x="${W - R}" y="${H - 4}" text-anchor="end">ns after word lines open / DRAIN_SL on</text>`;
+    s += `<text x="${L + 4}" y="${T + 10}">BL (V)</text>`;
+    if (ev) {
+      const t0 = ev.tp[0], t7 = ev.tp[7];
+      s += `<rect x="${x(t0) - 2}" width="${x(t7) - x(t0) + 4}" y="${T}" height="${H - T - B}" fill="${css("--band")}"/>`;
+      s += `<text x="${x(t7) + 5}" y="${T + 22}" fill="${css("--bld")}" style="fill:${css("--bld")}">taps</text>`;
+      s += `<line x1="${x(off)}" x2="${x(off)}" y1="${T}" y2="${H - B}" stroke="${css("--accent")}" stroke-dasharray="3 3"/><text x="${x(off) + 4}" y="${H - B - 6}" style="fill:${css("--accent")}">READ +${off}</text>`;
+    }
+    s += `<line x1="${L}" x2="${W - R}" y1="${y(VTH)}" y2="${y(VTH)}" stroke="${ink2}" stroke-dasharray="5 4"/><text x="${W - R - 4}" y="${y(VTH) - 5}" text-anchor="end">buffer threshold ≈ 0.6 V</text>`;
+    if (ev && t !== null) {
+      const tEnd = Math.min(t, TMAX), order = ev.cols.map((c, i) => i).sort((a, b) => (a === selCol) - (b === selCol));
+      for (const i of order) {
+        const col = ev.cols[i]; let d = `M${x(0)},${y(ev.cfg.vd)}`;
+        for (let k = 1; k <= 120; k++) { const tt = tEnd * k / 120; d += ` L${x(tt).toFixed(1)},${y(vbl(ev.cfg.vd, col.tc, tt)).toFixed(1)}`; }
+        const hl = i === selCol;
+        s += `<path d="${d}" fill="none" stroke="${traceColor(col)}" stroke-width="${hl ? 2.6 : 1.4}" opacity="${hl ? 1 : .55}"/>`;
+      }
+      if (t < TMAX) s += `<line x1="${x(t)}" x2="${x(t)}" y1="${T}" y2="${H - B}" stroke="${css("--ink")}" stroke-width="1"/>`;
+    } else if (ev && phase === "pre") {
+      s += `<line x1="${L}" x2="${W - R}" y1="${y(ev.cfg.vd)}" y2="${y(ev.cfg.vd)}" stroke="${css("--bld")}" stroke-width="2" opacity=".8"/><text x="${L + 60}" y="${y(ev.cfg.vd) - 6}">BL precharged to V_drain = ${ev.cfg.vd.toFixed(1)} V (400 ns)</text>`;
+    }
+    svg.innerHTML = s;
+    drawZoom(ev, t);
+  }
+
+  function drawZoom(ev, t) {
+    const svg = $("zoom"), W = 640, H = 190, L = 44, R = 12, T = 10, B = 30;
+    if (!ev) { svg.innerHTML = `<text x="320" y="95" text-anchor="middle">Run a read to see the taps.</text>`; return; }
+    const a = ev.tp[0] - 1.2, b = ev.tp[7] + 1.2;
+    const vlo = 0.45, vhi = 0.75;
+    const x = v => L + (v - a) / (b - a) * (W - L - R), y = v => T + (1 - (v - vlo) / (vhi - vlo)) * (H - T - B);
+    const g = css("--grid"), bld = css("--bld");
+    let s = "";
+    for (let v = 0.5; v <= 0.7001; v += 0.1) s += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="${g}"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v.toFixed(1)}</text>`;
+    s += `<line x1="${L}" x2="${W - R}" y1="${y(VTH)}" y2="${y(VTH)}" stroke="${css("--ink-2")}" stroke-dasharray="5 4"/>`;
+    ev.tp.forEach((tt, j) => {
+      const fired = t !== null && t >= tt;
+      s += `<line x1="${x(tt)}" x2="${x(tt)}" y1="${T}" y2="${H - B}" stroke="${bld}" stroke-width="${fired ? 1.6 : 1}" opacity="${fired ? 1 : .4}"/>`;
+      s += `<text x="${x(tt)}" y="${H - B + 14}" text-anchor="middle" style="fill:${fired ? bld : css("--ink-2")}">k${j}</text>`;
+    });
+    s += `<text x="${W - R}" y="${H - 2}" text-anchor="end">${a.toFixed(1)}–${b.toFixed(1)} ns · tap pitch ${PITCH} ns (V_DEL)</text>`;
+    if (t !== null) {
+      const tEnd = Math.min(t, b), order = ev.cols.map((c, i) => i).sort((p, q) => (p === selCol) - (q === selCol));
+      if (tEnd > a) for (const i of order) {
+        const col = ev.cols[i]; let d = "";
+        for (let k = 0; k <= 80; k++) {
+          const tt = a + (tEnd - a) * k / 80, v = Math.max(vlo - .02, Math.min(vhi + .02, vbl(ev.cfg.vd, col.tc, tt)));
+          d += `${k ? "L" : "M"}${x(tt).toFixed(1)},${y(v).toFixed(1)} `;
+        }
+        const hl = i === selCol;
+        s += `<path d="${d}" fill="none" stroke="${traceColor(col)}" stroke-width="${hl ? 2.6 : 1.4}" opacity="${hl ? 1 : .55}"/>`;
+      }
+      if (t > a && t < b) s += `<line x1="${x(t)}" x2="${x(t)}" y1="${T}" y2="${H - B}" stroke="${css("--ink")}"/>`;
+    }
+    svg.innerHTML = `<clipPath id="zc"><rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}"/></clipPath>` + s.replace(/<path /g, '<path clip-path="url(#zc)" ');
+  }
+
+  // ---------- register file ----------
+  function renderReg(ev, t) {
+    const opName = { read: "bit (tap 3)", nor: "NOR", maj: "MAJ", pop: "popcount" }[op] || "";
+    let h = `<tr><th class="l">col</th>${Array.from({ length: N }, (_, j) => `<th>k=${j}</th>`).join("")}<th>code</th><th>${opName}</th><th>stored</th><th></th></tr>`;
+    if (!ev) { $("reg").innerHTML = h + `<tr><td class="l" colspan="13">Write data or run a read.</td></tr>`; $("summary").innerHTML = ""; return; }
+    const done = t !== null && t >= TMAX;
+    ev.cols.forEach((col, c) => {
+      const ffs = col.ff.map((v, j) => { const s = t !== null && t >= ev.tp[j]; return `<td><span class="ff ${s ? "v" + v : ""}">${s ? v : "·"}</span></td>`; }).join("");
+      const code = t !== null && t >= ev.tp[7] ? col.code : "–";
+      let out = "–", mark = "";
+      if (done) {
+        if (op === "pop") out = col.out !== null ? col.out : (col.ks.length ? `${col.ks[0]}–${col.ks[col.ks.length - 1]}` : "?");
+        else out = col.out !== null ? col.out : "?";
+        mark = { ok: `<span class="ok">✓</span>`, bad: `<span class="bad">✗ wrong</span>`, amb: `<span class="amb">unresolved</span>`, bound: `<span class="amb">range</span>` }[col.verdict];
+      }
+      const truth = op === "read" ? col.k : `k=${col.k}${op === "pop" ? "" : " → " + col.truth}`;
+      h += `<tr data-c="${c}" class="${c === selCol ? "hl" : ""}"><td class="l" style="color:${traceColor(col)}">c${c}</td>${ffs}<td>${code}</td><td>${out}</td><td>${truth}</td><td class="l">${mark}</td></tr>`;
+    });
+    $("reg").innerHTML = h;
+    if (!done) { $("summary").innerHTML = ""; return; }
+    const ok = ev.cols.filter(c => c.verdict === "ok").length;
+    const mlabel = { read: "margin", nor: "NOR margin c(0)−c(1)", maj: "majority margin c(4)−c(5)", pop: "distinct popcount codes" }[op];
+    let s = `<span>${mlabel}: <b>${ev.margin}${op === "pop" ? "" : " taps"}</b></span>`;
+    if (ev.table) s += `<span>codes for k = 0…8: <b>${ev.table.join(" ")}</b></span>`;
+    s += `<span>columns decided exactly: <b>${ok}/8</b></span>`;
+    $("summary").innerHTML = s;
+  }
+
+  // ---------- run ----------
+  function setPhase(p) { phase = p; document.querySelectorAll("#phase span").forEach(s => s.classList.toggle("on", s.dataset.p === p)); }
+  function lock(v) { busy = v; document.querySelectorAll("button, input").forEach(b => { if (!b.closest(".reg")) b.disabled = v && !b.closest("#phase"); }); if (!v) syncControls(), renderArray(); }
+
+  function runRead() {
+    if (op === "read" && !mask.includes(true)) { $("status").textContent = "Tick one row to read."; return; }
+    result = evaluate(); lock(true); cancelAnimationFrame(anim);
+    const stages = [["pre", 600], ["settle", 450], ["dis", 2600]];
+    if (reduce) { setPhase("done"); cursor = TMAX; drawScope(result, cursor); renderReg(result, cursor); finish(); return; }
+    let i = 0, start = performance.now();
+    cursor = null; setPhase("pre"); renderArray(); drawScope(result, null); renderReg(result, null);
+    $("status").textContent = "Precharging BL to V_drain through TS_LS (DIN = 0 polarity), SL grounded.";
+    const step = now => {
+      const [p, dur] = stages[i], f = (now - start) / dur;
+      if (f >= 1) {
+        i++; start = now;
+        if (i === 1) { setPhase("settle"); renderArray(); $("status").textContent = op === "read" ? "Word line opens; settle-drain grounds SL." : "All 8 word lines open; settle-drain grounds SL to stop charge sharing."; }
+        if (i === 2) { setPhase("dis"); renderArray(); $("status").textContent = `DRAIN_SL on: BL discharges through the open cells. READ fires at +${off} ns and the delay line clocks 8 flip-flops.`; }
+        if (i === 3) { setPhase("done"); cursor = TMAX; drawScope(result, cursor); renderReg(result, cursor); finish(); return; }
+      }
+      if (p === "dis") {
+        // slow the sweep down inside the tap window so each tap is visible
+        const tw0 = result.tp[0] - 1.5, tw1 = result.tp[7] + 1.5, a = 0.4, b = 0.75;
+        cursor = f < a ? tw0 * f / a : f < b ? tw0 + (tw1 - tw0) * (f - a) / (b - a) : tw1 + (TMAX - tw1) * (f - b) / (1 - b);
+        drawScope(result, cursor); renderReg(result, cursor);
+      } else if (p === "pre") drawScope(result, null);
+      anim = requestAnimationFrame(step);
+    };
+    anim = requestAnimationFrame(step);
+  }
+  function finish() {
+    setPhase("done"); lock(false);
+    const amb = result.cols.filter(c => c.verdict === "amb").length, bad = result.cols.filter(c => c.verdict === "bad").length;
+    let msg = "Sample captured into MEM_OUT.";
+    if (op === "nor") msg += result.margin > 0 ? ` NOR resolved by ${result.margin} taps.` : " k = 0 and k = 1 give the same code here, so NOR is not resolved.";
+    if (op === "maj") msg += result.margin > 0 ? ` Majority resolved by ${result.margin} tap${result.margin > 1 ? "s" : ""}.` : " k = 4 and k = 5 give the same code, so majority is not resolved.";
+    if (op === "pop") msg += ` ${result.margin} popcount levels are distinguishable at this window.`;
+    if (amb || bad) msg += " Try another read offset" + (hrs === "200k" ? " or the 1 MΩ HRS." : ".");
+    $("status").textContent = msg;
+  }
+  function runWrite() {
+    if (!mask.includes(true)) { $("status").textContent = "Tick at least one row to write."; return; }
+    lock(true); setPhase(null); writing = true; renderArray();
+    $("status").textContent = `Writing ${word.join("")} into row${mask.filter(Boolean).length > 1 ? "s" : ""} ${mask.map((m, r) => m ? r : null).filter(r => r !== null).join(", ")}: SET on 1-columns, RESET on 0-columns.`;
+    setTimeout(() => {
+      mask.forEach((m, r) => { if (m) for (let c = 0; c < N; c++) mem[r][c] = word[c]; });
+      renderArray();
+      setTimeout(() => { writing = null; result = null; cursor = null; lock(false); drawScope(null, null); renderReg(null, null); $("status").textContent = "Write done. Switch to Read, NOR, Majority or Popcount to read it back."; }, reduce ? 0 : 500);
+    }, reduce ? 0 : 700);
+  }
+
+  // ---------- events ----------
+  document.addEventListener("click", e => {
+    const b = e.target.closest("button, tr[data-c]"); if (!b || busy && b.tagName === "BUTTON") return;
+    if (b.dataset.op) {
+      op = b.dataset.op;
+      if (op === "read" && mask.filter(Boolean).length !== 1) mask = mask.map((_, r) => r === Math.max(0, mask.indexOf(true)));
+      if (DEF_OFF[op] !== undefined) off = hrs === "200k" && op !== "read" ? 0 : DEF_OFF[op];
+      result = null; cursor = null; setPhase(null); syncControls(); renderArray(); drawScope(null, null); renderReg(null, null); $("status").textContent = "";
+      if (op !== "write") runRead();
+    } else if (b.dataset.hrs) {
+      hrs = b.dataset.hrs; if (op !== "read" && op !== "write") off = hrs === "200k" ? 0 : DEF_OFF[op];
+      syncControls(); if (op !== "write") runRead();
+    } else if (b.dataset.o !== undefined) { off = +b.dataset.o; syncControls(); runRead(); }
+    else if (b.dataset.c !== undefined && b.closest("#bits")) { word[b.dataset.c] ^= 1; syncControls(); }
+    else if (b.tagName === "TR") { selCol = +b.dataset.c; drawScope(result, cursor); renderReg(result, cursor); }
+    else if (b.id === "run") op === "write" ? runWrite() : runRead();
+    else if (b.id === "fill") { exampleData(); syncControls(); renderArray(); if (op !== "write") runRead(); }
+  });
+  document.addEventListener("change", e => {
+    const r = e.target.dataset.r; if (r === undefined) return;
+    if (op === "read") mask = mask.map((_, i) => i === +r); else mask[r] = e.target.checked;
+    syncControls(); renderArray();
+    if (op === "read") runRead();
+  });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { drawScope(result, cursor); renderReg(result, cursor); });
+  new MutationObserver(() => { drawScope(result, cursor); renderReg(result, cursor); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  // ---------- start: NOR on example data, shown captured ----------
+  exampleData(); buildControls(); syncControls(); renderArray();
+  result = evaluate(); cursor = TMAX; setPhase("done"); drawScope(result, cursor); renderReg(result, cursor); finish();
+})();
+</script>
+</body>
+</html>
