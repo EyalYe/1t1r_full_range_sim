@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>RERGON 1T1R Slice</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="Interactive view of one 8×8 slice of the 64×64 1T1R RRAM PiM macro: write, read, NOR, majority and popcount with a live bit-line and TDC tap view.">
+<meta name="description" content="Interactive view of one 8×8 slice of the 64×64 1T1R RRAM PiM macro: write, read, NOR, majority and popcount with a live bit-line and TDC tap view, and how many rows one access can decide over.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
@@ -109,6 +109,14 @@ table.reg { border-collapse: collapse; width: 100%; min-width: 560px; font-size:
 .ok { color: var(--ok); } .bad { color: var(--bad); } .amb { color: var(--warn); }
 .summary { display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 13px; }
 .summary b { font-family: var(--mono); font-weight: 500; }
+.rowsgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 900px) { .rowsgrid { grid-template-columns: minmax(0,1fr); } }
+.rows svg { width: 100%; height: auto; display: block; }
+.rows text { font-family: var(--mono); font-size: 11px; fill: var(--ink-2); }
+.facts { display: grid; gap: 10px; font-size: 14px; min-width: 0; }
+.facts p { margin: 0; max-width: 65ch; }
+.facts ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--ink-2); }
+.facts b { color: var(--ink); font-weight: 500; }
 details { font-size: 14px; color: var(--ink-2); }
 details summary { cursor: pointer; color: var(--ink); font-weight: 500; }
 details ul { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 4px; max-width: 85ch; }
@@ -122,7 +130,7 @@ footer a { color: var(--accent); }
   <header>
     <div class="eyebrow">RERGON · IHP SG13G2 130 nm · 64×64 1T1R RRAM PiM macro · pre-silicon, tape-out ready</div>
     <h1>One 8×8 slice, read in the time domain</h1>
-    <p class="lede">Each column precharges its bit line, opens the selected word lines and discharges through the cells. An 8-tap delay line samples the buffered bit line (BLD), and the count of taps that still saw BL high is the column's thermometer code. Opening 8 rows at once turns that read into NOR, majority or popcount.</p>
+    <p class="lede">Each column precharges its bit line, opens the selected word lines and discharges through the cells. An 8-tap delay line samples the buffered bit line (BLD), and the count of taps that still saw BL high is the column's thermometer code. Opening up to 8 rows at once turns that read into NOR or majority; with 2 rows it also gives an exact popcount.</p>
   </header>
 
   <section class="panel controls" aria-label="Operation">
@@ -131,12 +139,14 @@ footer a { color: var(--accent); }
       <button id="op-read" data-op="read">Read</button>
       <button id="op-nor" data-op="nor">NOR (8 rows)</button>
       <button id="op-maj" data-op="maj">Majority (8 rows)</button>
-      <button id="op-pop" data-op="pop">Popcount (8 rows)</button>
+      <button id="op-pop" data-op="pop">Popcount</button>
     </div>
     <div class="row">
       <div class="field" id="f-data"><span>Data word, columns 0–7</span><div class="bits" id="bits"></div></div>
       <div class="field" id="f-hrs"><span>HRS</span><div class="seg" role="group" aria-label="HRS resistance">
         <button id="hrs-200k" data-hrs="200k">200 kΩ (IHP top)</button><button id="hrs-1m" data-hrs="1M">1 MΩ (ideal)</button></div></div>
+      <div class="field" id="f-rows"><span>Rows open</span><div class="seg" role="group" aria-label="Rows open for popcount">
+        <button id="pr-2" data-pr="2">2 rows</button><button id="pr-8" data-pr="8">8 rows</button></div></div>
       <div class="field" id="f-off"><span>Read offset</span><div class="seg" role="group" aria-label="Read offset" id="offs"></div></div>
       <button class="btn run" id="run">Run</button>
       <button class="btn" id="fill">Load example data</button>
@@ -172,16 +182,34 @@ footer a { color: var(--accent); }
     <div class="regwrap"><table class="reg" id="reg"></table></div>
   </section>
 
+  <section class="panel rows" aria-label="Rows per access">
+    <h2>Rows per access · why one access stops at 8 rows</h2>
+    <div class="rowsgrid">
+      <svg id="rowsplot" viewBox="0 0 520 300" role="img" aria-label="Crossing-time step behind each decision against rows open"></svg>
+      <div class="facts">
+        <p>Every open row adds an HRS current that one LRS cell has to stand out against, so the crossing-time step between neighbouring counts falls roughly as 1/n². Once that step is shorter than one tap pitch, a tap edge can fall between two crossings and the decision is lost.</p>
+        <ul>
+          <li><b>NOR, 200 kΩ</b>: all 8 taps up to 4 rows, 4–5 taps up to 8 rows. Step 17 ns at 2 rows, 1.4 ns at 8, 0.29 ns at 16 (one to two tap pitches). Below one pitch from 24 rows on.</li>
+          <li><b>Majority, 200 kΩ</b>: 8 taps at 2 rows, 2–3 taps at 6–8 rows. Step 5 ns at 2 rows, 0.4 ns at 8.</li>
+          <li><b>NOR, 1 MΩ (ideal)</b>: step still 2.0 ns at 16 rows and 0.6 ns at 24, but the 1.2–2.5 ns window placed in 10 ns steps misses it. At 16 rows the k = 1 crossing falls 0.03 ns after the latest window ends.</li>
+          <li><b>Popcount</b>: only 2 rows give a distinct code for every count (8, 6, 0 at 200 kΩ). Wider sums are split into 8-row groups and combined by the host.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
   <details>
     <summary>Where the numbers come from</summary>
     <ul>
       <li>Each operation runs at its best operating point from the paper's finished V<sub>drain</sub> × V<sub>gate</sub> × V<sub>DEL</sub> grid (0.8–1.0 V), confirmed by direct transients (Table I). C<sub>MIM</sub> = 10 fF, extracted line capacitance, LRS 9 kΩ, 40-cycle precharge, settle-drain.</li>
-      <li>HRS 200 kΩ (top of IHP's range), V<sub>gate</sub> = 0.8 V: single-row read by 8 taps (0.8/0.8/0.8 V, +20 ns); 8-row NOR codes 7 1 0 0 0 0 0 0 0, 6 taps (0.9/0.8/1.0 V, +10 ns); 8-row majority codes 8 8 8 6 3 1 0 0 0, 2 taps, and 5 popcount codes (1.0/0.8/1.0 V, +10 ns). 0.06 V and 0.8 µA on a cell for the 8-row operations.</li>
-      <li>HRS 1 MΩ (ideal case): NOR codes 8 0 0 0 0 0 0 0 0, full scale (0.8/0.8/0.9 V); majority codes 8 8 8 8 7 3 0 0 0, 4 taps (1.0/0.8/1.0 V). 0.12 V and 1.0 µA on a cell. Popcount at the majority point follows from those codes (4 levels); the paper does not list it.</li>
+      <li>HRS 200 kΩ (top of IHP's range), V<sub>gate</sub> = 0.8 V: single-row read by 8 taps (0.8/0.8/0.8 V, +20 ns); 8-row NOR codes 7 1 0 0 0 0 0 0 0, 6 taps (0.9/0.8/1.0 V, +10 ns); 8-row majority codes 8 8 8 6 3 1 0 0 0, 2 taps (1.0/0.8/1.0 V, +10 ns). 0.06 V and 0.8 µA on a cell for the 8-row operations. At the majority point those codes give 5 of 9 popcount levels; the paper only claims an exact popcount for 2 rows.</li>
+      <li>2-row popcount at 200 kΩ, 1.0/0.8/0.8 V, +20 ns: codes 8, 6, 0 for k = 0, 1, 2. The paper reports the codes only, so the 2-row crossings are drawn to match them.</li>
+      <li>HRS 1 MΩ (ideal case): NOR codes 8 0 0 0 0 0 0 0 0, full scale (0.8/0.8/0.9 V); majority codes 8 8 8 8 7 3 0 0 0, 4 taps (1.0/0.8/1.0 V). 0.12 V and 1.0 µA on a cell. At the majority point those codes give 4 popcount levels.</li>
       <li>Crossing times are read from Fig. 4(a): at 200 kΩ the 8-row band is 20–27 ns, with the NOR all-HRS crossing at 23.9 ns and k = 1 at 22.9 ns. Single-row: LRS 28.2 ns, 200 kΩ HRS 50.7 ns.</li>
       <li>Two curves are not plotted in the paper and are drawn only to reproduce the Table I codes: 1 MΩ NOR at 0.8/0.8/0.9 V, and the single-row 1 MΩ HRS crossing (shown as later than the plot). The page flags them when they are in use.</li>
       <li>Tap positions are fitted per operating point so the model gives exactly the Table I codes, matching the paper's comparison offset fitted on direct transients. Pitch is about 0.17 ns at V<sub>DEL</sub> = 1.0 V (window 23.5–24.7 ns) and 0.31 ns at 0.8 V; 0.24 ns at 0.9 V is interpolated. Codes at other read offsets shift the same window by 10 ns steps. The waveform between precharge and threshold is a simple exponential for illustration; only the crossing times come from simulation.</li>
       <li>Writes: TS_LS with DIN = 1 drives SL to V<sub>drain</sub> and BL to ground (SET → LRS); DIN = 0 drives BL to V<sub>drain</sub> and SL to ground (RESET → HRS). Reads use the RESET polarity.</li>
+      <li>Rows per access (Fig. 5): the chart plots only the crossing-time steps the paper states in its text; the dotted guides are 1/n² curves through the 2-row values.</li>
       <li>The full macro has 64 columns, so one access returns 64 × 8 = 512 bits. This page shows one 8×8 block, the same block the paper simulates.</li>
     </ul>
   </details>
@@ -203,7 +231,9 @@ footer a { color: var(--accent); }
       read: { vd: 0.8, vg: 0.8, vdel: 0.8, tap0: 32.85, pitch: 0.31, v: 0.09, i: 1.3, tL: 28.2, tH: 50.7 },
       nor: { vd: 0.9, vg: 0.8, vdel: 1.0, tap0: 22.8, pitch: 0.171, v: 0.06, i: 0.8,
         t: [23.9, 22.9, 22.2, 21.8, 21.4, 21.1, 20.9, 20.7, 20.5] },
-      maj: MAJ200, pop: MAJ200
+      maj: MAJ200, pop: MAJ200,
+      // 2-row popcount at 1.0/0.8/0.8 V, +20 ns: only the codes 8, 6, 0 are reported; crossings drawn to match them.
+      pop2: { vd: 1.0, vg: 0.8, vdel: 0.8, tap0: 32.85, pitch: 0.31, v: null, i: null, synth: true, t: [38.0, 34.55, 30.0] }
     },
     "1M": {
       // 1 MΩ single-row crossing is not reported: drawn beyond the plot.
@@ -215,6 +245,8 @@ footer a { color: var(--accent); }
     }
   };
   const DEF_OFF = { read: 20, nor: 10, maj: 10, pop: 10 };
+  const defOff = () => op === "pop" && popRows === 2 ? 20 : DEF_OFF[op];
+  const rowsOpen = () => op === "pop" && popRows === 2 ? [0, 1] : [...Array(N).keys()];
   const OFFS = [0, 10, 20, 30];
   const FN = { nor: k => k === 0 ? 1 : 0, maj: k => k > N / 2 ? 1 : 0, pop: k => k };
   const HINT = {
@@ -222,14 +254,14 @@ footer a { color: var(--accent); }
     read: "Tick one row. Each column's code is 0 for LRS (BL falls before the taps) and 8 for HRS. The controller's single-bit read takes tap 3.",
     nor: "All 8 word lines open together. Only a column with every cell in HRS (k = 0) discharges slowly enough to hold BL high across the window. At 200 kΩ the best point uses V_drain = 0.9 V.",
     maj: "All 8 word lines open. The decision is between k = 4 and k = 5 LRS cells, where the crossing times are only a few hundred picoseconds apart. V_drain = 1.0 V moves the band so k = 3…5 straddle the window.",
-    pop: "All 8 word lines open. Each distinct code is one popcount level; codes shared by several k only bound the count."
+    pop: "With 2 rows open every count gets its own code (8, 6, 0 for k = 0, 1, 2), a 2-tap step. With 8 rows the steps between neighbouring counts shrink as 1/n², so several counts share a code and only bound the popcount."
   };
   const $ = id => document.getElementById(id);
   const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const EXAMPLE_K = [0, 1, 2, 3, 4, 5, 6, 8];
-  let mem = [], op = "nor", hrs = "200k", off = 10, word = [1, 0, 1, 1, 0, 0, 1, 0];
+  let mem = [], op = "nor", hrs = "200k", off = 10, popRows = 8, word = [1, 0, 1, 1, 0, 0, 1, 0];
   let mask = [true, false, false, false, false, false, false, false];
   let selCol = 0, result = null, cursor = null, phase = null, anim = 0, busy = false, writing = null;
 
@@ -241,15 +273,15 @@ footer a { color: var(--accent); }
 
   // ---------- model ----------
   function config() {
-    const p = PRESET[hrs][op === "write" ? "read" : op];
+    const p = PRESET[hrs][op === "write" ? "read" : op === "pop" && popRows === 2 ? "pop2" : op];
     if (op === "read" || op === "write") {
       const r = mask.indexOf(true);
       return { ...p, cols: Array.from({ length: N }, (_, c) => { const b = r < 0 ? 0 : mem[r][c]; return { k: b, tc: b ? p.tL : p.tH }; }) };
     }
     return { ...p, tbl: p.t,
-      cols: Array.from({ length: N }, (_, c) => { let k = 0; for (let r = 0; r < N; r++) k += mem[r][c]; return { k, tc: p.t[k] }; }) };
+      cols: Array.from({ length: N }, (_, c) => { let k = 0; for (const r of rowsOpen()) k += mem[r][c]; return { k, tc: p.t[k] }; }) };
   }
-  const taps = cfg => Array.from({ length: N }, (_, j) => cfg.tap0 + (off - DEF_OFF[op]) + cfg.pitch * j);
+  const taps = cfg => Array.from({ length: N }, (_, j) => cfg.tap0 + (off - defOff()) + cfg.pitch * j);
   const vbl = (vd, tc, t) => t <= 0 ? vd : vd * Math.exp(-t * Math.log(vd / VTH) / tc);
   const codeOf = (tc, tp) => tp.filter(x => x < tc).length;
 
@@ -289,12 +321,15 @@ footer a { color: var(--accent); }
     document.querySelectorAll("#bits button").forEach(b => { b.dataset.v = word[b.dataset.c]; b.textContent = word[b.dataset.c]; });
     $("f-data").hidden = op !== "write";
     $("f-off").hidden = op === "write";
+    $("f-rows").hidden = op !== "pop";
+    document.querySelectorAll("[data-pr]").forEach(b => { b.setAttribute("aria-pressed", +b.dataset.pr === popRows); });
+    $("pr-2").title = hrs === "1M" ? "Reported for HRS 200 kΩ only" : "";
     $("hint").textContent = HINT[op].replace(/V₀/g, "V_drain");
     $("run").textContent = op === "write" ? "Write" : "Run read";
     const cfg = config(), tp = taps(cfg);
     $("oppoint").innerHTML = op === "write"
       ? `TS_LS drivers from <b>V<sub>drain</sub></b> (write level) · word lines from <b>V<sub>gate</sub></b> · ${mask.filter(Boolean).length} row(s) selected`
-      : `Operating point <b>V<sub>drain</sub>/V<sub>gate</sub>/V<sub>DEL</sub> = ${cfg.vd.toFixed(1)}/${cfg.vg.toFixed(1)}/${cfg.vdel.toFixed(1)} V</b> · HRS <b>${hrs === "1M" ? "1 MΩ" : "200 kΩ"}</b> · LRS <b>9 kΩ</b> · C<sub>MIM</sub> <b>10 fF</b> · ${op === "read" ? "1 row" : "8 rows"} open · taps at <b>${tp[0].toFixed(1)}…${tp[7].toFixed(1)} ns</b> · read stress <b>${cfg.v === null ? "not reported" : cfg.v.toFixed(2) + " V / " + cfg.i.toFixed(1) + " µA"}</b> per cell${cfg.synth ? " · <b>curve drawn to match Table I codes (not plotted in the paper)</b>" : ""}`;
+      : `Operating point <b>V<sub>drain</sub>/V<sub>gate</sub>/V<sub>DEL</sub> = ${cfg.vd.toFixed(1)}/${cfg.vg.toFixed(1)}/${cfg.vdel.toFixed(1)} V</b> · HRS <b>${hrs === "1M" ? "1 MΩ" : "200 kΩ"}</b> · LRS <b>9 kΩ</b> · C<sub>MIM</sub> <b>10 fF</b> · ${op === "read" ? "1 row" : rowsOpen().length + " rows"} open · taps at <b>${tp[0].toFixed(1)}…${tp[7].toFixed(1)} ns</b> · read stress <b>${cfg.v === null ? "not reported" : cfg.v.toFixed(2) + " V / " + cfg.i.toFixed(1) + " µA"}</b> per cell${cfg.synth ? " · <b>curve drawn to match Table I codes (not plotted in the paper)</b>" : ""}`;
   }
   function renderArray() {
     const cfg = op === "write" ? null : config();
@@ -307,7 +342,7 @@ footer a { color: var(--accent); }
       return `<div class="drv ${cls}">${txt}</div>`;
     }).join("");
     for (let r = 0; r < N; r++) {
-      const on = mask[r] || (op !== "write" && op !== "read");
+      const on = op === "write" || op === "read" ? mask[r] : rowsOpen().includes(r);
       const multi = op !== "write" && op !== "read";
       h += `<label class="wl ${on ? "on" : ""}"><input type="checkbox" id="wl-${r}" data-r="${r}" ${on ? "checked" : ""} ${multi ? "disabled" : ""}>r${r}</label>`;
       for (let c = 0; c < N; c++) {
@@ -326,7 +361,7 @@ footer a { color: var(--accent); }
   // ---------- scope ----------
   const kColor = k => {
     // k = 0 (all HRS) orange → k = 8 (all LRS) blue, mixed in sRGB from the theme tokens
-    const a = hex(css("--hrs")), b = hex(css("--lrs")), f = k / N;
+    const a = hex(css("--hrs")), b = hex(css("--lrs")), f = k / rowsOpen().length;
     return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * f)).join(",")})`;
   };
   function hex(s) { s = s.replace("#", ""); return [0, 2, 4].map(i => parseInt(s.slice(i, i + 2), 16)); }
@@ -417,9 +452,9 @@ footer a { color: var(--accent); }
     $("reg").innerHTML = h;
     if (!done) { $("summary").innerHTML = ""; return; }
     const ok = ev.cols.filter(c => c.verdict === "ok").length;
-    const mlabel = { read: "margin", nor: "NOR margin c(0)−c(1)", maj: "majority margin c(4)−c(5)", pop: "distinct popcount codes" }[op];
+    const mlabel = { read: "margin", nor: "NOR margin c(0)−c(1)", maj: "majority margin c(4)−c(5)", pop: `distinct popcount codes (of ${ev.table ? ev.table.length : 0} counts)` }[op];
     let s = `<span>${mlabel}: <b>${ev.margin}${op === "pop" ? "" : " taps"}</b></span>`;
-    if (ev.table) s += `<span>codes for k = 0…8: <b>${ev.table.join(" ")}</b></span>`;
+    if (ev.table) s += `<span>codes for k = 0…${ev.table.length - 1}: <b>${ev.table.join(" ")}</b></span>`;
     s += `<span>columns decided exactly: <b>${ok}/8</b></span>`;
     $("summary").innerHTML = s;
   }
@@ -460,8 +495,8 @@ footer a { color: var(--accent); }
     let msg = "Sample captured into MEM_OUT.";
     if (op === "nor") msg += result.margin > 0 ? ` NOR resolved by ${result.margin} taps.` : " k = 0 and k = 1 give the same code here, so NOR is not resolved.";
     if (op === "maj") msg += result.margin > 0 ? ` Majority resolved by ${result.margin} tap${result.margin > 1 ? "s" : ""}.` : " k = 4 and k = 5 give the same code, so majority is not resolved.";
-    if (op === "pop") msg += ` ${result.margin} popcount levels are distinguishable at this window.`;
-    if (amb || bad) msg += " Try another read offset" + ", or go back to the best point (+" + DEF_OFF[op] + " ns).";
+    if (op === "pop") msg += result.margin === result.table.length ? ` Every count from 0 to ${result.table.length - 1} has its own code.` : ` ${result.margin} of ${result.table.length} counts are distinguishable; the rest share codes.`;
+    if (amb || bad) msg += " Try another read offset" + ", or go back to the best point (+" + defOff() + " ns).";
     $("status").textContent = msg;
   }
   function runWrite() {
@@ -475,18 +510,48 @@ footer a { color: var(--accent); }
     }, reduce ? 0 : 700);
   }
 
+  // ---------- rows per access (values stated in the paper text, Fig. 5b) ----------
+  function drawRows() {
+    const W = 520, H = 300, L = 52, R = 14, T = 28, B = 40;
+    const lx = n => L + Math.log2(n / 2) / 5 * (W - L - R), ly = v => T + (Math.log10(30) - Math.log10(v)) / (Math.log10(30) + 2) * (H - T - B);
+    const g = css("--grid"), lrs = css("--lrs"), hrsC = css("--hrs"), bld = css("--bld");
+    let s = `<rect x="${lx(8)}" y="${T}" width="${lx(64) - lx(8)}" height="${H - T - B}" fill="${css("--sunk")}"/><text x="${lx(64) - 4}" y="${T + 14}" text-anchor="end">beyond 8 rows</text>`;
+    s += `<rect x="${L}" width="${W - L - R}" y="${ly(0.31)}" height="${ly(0.171) - ly(0.31)}" fill="${css("--band")}"/><text x="${L + 6}" y="${ly(0.31) - 4}" style="fill:${bld}">tap pitch 0.17–0.31 ns</text>`;
+    [0.01, 0.1, 1, 10].forEach(v => s += `<line x1="${L}" x2="${W - R}" y1="${ly(v)}" y2="${ly(v)}" stroke="${g}"/><text x="${L - 6}" y="${ly(v) + 4}" text-anchor="end">${v}</text>`);
+    [2, 4, 8, 16, 32, 64].forEach(n => s += `<line y1="${T}" y2="${H - B}" x1="${lx(n)}" x2="${lx(n)}" stroke="${g}"/><text x="${lx(n)}" y="${H - B + 16}" text-anchor="middle">${n}</text>`);
+    s += `<text x="${W - R}" y="${H - 4}" text-anchor="end">rows open n</text><text x="${L - 44}" y="${T - 14}">crossing-time step (ns)</text>`;
+    const guide = (a, c) => { let d = ""; for (let n = 2; n <= 64; n *= 1.1) d += `${d ? "L" : "M"}${lx(n).toFixed(1)},${ly(a * 4 / (n * n)).toFixed(1)} `; return `<path d="${d}" fill="none" stroke="${c}" stroke-dasharray="2 4" opacity=".6"/>`; };
+    s += guide(17, lrs) + guide(5, hrsC);
+    const series = [
+      { c: lrs, pts: [[2, 17], [8, 1.4], [16, 0.29]], label: "NOR 200 kΩ", dash: "" },
+      { c: hrsC, pts: [[2, 5], [8, 0.4]], label: "majority 200 kΩ", dash: "" },
+      { c: lrs, pts: [[16, 2.0], [24, 0.6]], label: "NOR 1 MΩ (ideal)", dash: "5 3", hollow: true }
+    ];
+    series.forEach((sr, i) => {
+      s += `<path d="${sr.pts.map(([n, v], j) => `${j ? "L" : "M"}${lx(n)},${ly(v)}`).join(" ")}" fill="none" stroke="${sr.c}" stroke-width="1.8" stroke-dasharray="${sr.dash}"/>`;
+      sr.pts.forEach(([n, v]) => s += `<circle cx="${lx(n)}" cy="${ly(v)}" r="4" fill="${sr.hollow ? css("--surface") : sr.c}" stroke="${sr.c}" stroke-width="1.8"/><text x="${lx(n) + 7}" y="${ly(v) - 6}" style="fill:${sr.c}">${v}</text>`);
+      const y0 = H - B - 58 + i * 16;
+      s += `<line x1="${L + 10}" x2="${L + 30}" y1="${y0}" y2="${y0}" stroke="${sr.c}" stroke-width="1.8" stroke-dasharray="${sr.dash}"/><text x="${L + 36}" y="${y0 + 4}">${sr.label}</text>`;
+    });
+    s += `<text x="${L + 36}" y="${H - B - 58 + 3 * 16 + 4}">dotted: ∝ 1/n²</text>`;
+    $("rowsplot").innerHTML = s;
+  }
+
   // ---------- events ----------
   document.addEventListener("click", e => {
     const b = e.target.closest("button, tr[data-c]"); if (!b || busy && b.tagName === "BUTTON") return;
     if (b.dataset.op) {
       op = b.dataset.op;
       if (op === "read" && mask.filter(Boolean).length !== 1) mask = mask.map((_, r) => r === Math.max(0, mask.indexOf(true)));
-      if (DEF_OFF[op] !== undefined) off = DEF_OFF[op];
+      if (DEF_OFF[op] !== undefined) off = defOff();
       result = null; cursor = null; setPhase(null); syncControls(); renderArray(); drawScope(null, null); renderReg(null, null); $("status").textContent = "";
       if (op !== "write") runRead();
     } else if (b.dataset.hrs) {
-      hrs = b.dataset.hrs; if (op !== "write") off = DEF_OFF[op];
+      hrs = b.dataset.hrs; if (hrs === "1M") popRows = 8; if (op !== "write") off = defOff();
       syncControls(); if (op !== "write") runRead();
+    } else if (b.dataset.pr) {
+      if (hrs === "1M" && b.dataset.pr === "2") { $("status").textContent = "The 2-row popcount is reported for HRS 200 kΩ only. Switch HRS to 200 kΩ to run it."; return; }
+      popRows = +b.dataset.pr; off = defOff(); syncControls(); renderArray(); runRead();
     } else if (b.dataset.o !== undefined) { off = +b.dataset.o; syncControls(); runRead(); }
     else if (b.dataset.c !== undefined && b.closest("#bits")) { word[b.dataset.c] ^= 1; syncControls(); }
     else if (b.tagName === "TR") { selCol = +b.dataset.c; drawScope(result, cursor); renderReg(result, cursor); }
@@ -499,11 +564,11 @@ footer a { color: var(--accent); }
     syncControls(); renderArray();
     if (op === "read") runRead();
   });
-  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { drawScope(result, cursor); renderReg(result, cursor); });
-  new MutationObserver(() => { drawScope(result, cursor); renderReg(result, cursor); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { drawScope(result, cursor); renderReg(result, cursor); drawRows(); });
+  new MutationObserver(() => { drawScope(result, cursor); renderReg(result, cursor); drawRows(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
   // ---------- start: NOR on example data, shown captured ----------
-  exampleData(); buildControls(); syncControls(); renderArray();
+  exampleData(); buildControls(); syncControls(); renderArray(); drawRows();
   result = evaluate(); cursor = TMAX; setPhase("done"); drawScope(result, cursor); renderReg(result, cursor); finish();
 })();
 </script>
